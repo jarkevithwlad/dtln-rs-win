@@ -1,0 +1,22 @@
+{
+  "name": "dtln-rs",
+  "version": "0.1.0",
+  "description": "Dtln noise reduction module.",
+  "main": "dtln.js",
+  "browser": "dtln.js",
+  "scripts": {
+    "install-mac-x86_64": "cargo clean;npx cargo-cp-artifact -a cdylib dtln-rs index.node -- cargo build -p dtln-rs --lib --release --message-format=json-render-diagnostics --target x86_64-apple-darwin; cp dtln.node.js dtln.js",
+    "install-mac-arm64": "cargo clean;npx cargo-cp-artifact -a cdylib dtln-rs index.node -- cargo build -p dtln-rs --lib --release --message-format=json-render-diagnostics --target aarch64-apple-darwin; cp dtln.node.js dtln.js",
+    "install-wasm": "node ./scripts/install-wasm.js",
+    "build": "npx cargo-cp-artifact -nc index.node -- cargo build --message-format=json-render-diagnostics",
+    "build-debug": "npm run build --",
+    "build-release": "npm run build -- --release",
+    "install-native": "f() { if [[ \"$TARGET_ARCH\" == \"x64\" ]]; then npm run install-mac-x86_64; else npm run install-mac-arm64; fi }; f",
+    "test": "cargo test"
+  },
+  "author": "Jason Thomas",
+  "license": "Private",
+  "devDependencies": {
+    "cargo-cp-artifact": "^0.1"
+  }
+}
