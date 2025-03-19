@@ -1,6 +1,7 @@
 Component,Origin,License,Copyright
 anyhow,https://github.com/dtolnay/anyhow,MIT OR Apache-2.0,David Tolnay <dtolnay@gmail.com>
 byteorder,https://github.com/BurntSushi/byteorder,Unlicense OR MIT,Andrew Gallant <jamslam@gmail.com>
+cargo-cp-artifact,https://github.com/neon-bindings/neon/tree/main/pkgs/cargo-cp-artifact,MIT,The Neon Project Developers 
 cfg-if,https://github.com/alexcrichton/cfg-if,MIT OR Apache-2.0,Alex Crichton <alex@alexcrichton.com>
 cxx,https://github.com/dtolnay/cxx,MIT OR Apache-2.0,David Tolnay <dtolnay@gmail.com>
 getrandom,https://github.com/rust-random/getrandom,MIT OR Apache-2.0,The Rand Project Developers
