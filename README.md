@@ -1,9 +1,8 @@
-Unless explicitly stated otherwise all files in this repository are licensed under the MIT License.
-This product includes software developed at [Datadog](https://www.datadoghq.com/) Copyright 2024 Datadog, Inc.
-
 # dtln-rs
 
-Dtln noise reduction module.
+dtln-rs provides near real-time noise suppression for audio.
+
+Built on a Dual-Signal Transformation LSTM Network (DTLN) approach but designed to be lightweight and portable, this module provide an embeddable noise reduction solution. It is packaged as a small Rust project that produces a WebAssembly module, a native Rust target library, and a NodeJS native module that can be easily embedded in your clients, and interfaced with WebRTC.
 
 ## Description
 
