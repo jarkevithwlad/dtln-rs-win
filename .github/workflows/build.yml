@@ -30,7 +30,7 @@ jobs:
 
           # Находим путь к библиотеке tensorflowlite_c.dll, используя поиск по файлу
           # Получаем путь к site-packages
-          $site_packages_path = python -c "from site import getsitepackages; print(sitespackages[0])"
+          $site_packages_path = python -c "from site import getsitepackages; print(getsitepackages()[0])"
           Write-Output "Searching for tensorflowlite_c.dll in: $site_packages_path"
           
           # Рекурсивно ищем файл tensorflowlite_c.dll
