@@ -26,7 +26,7 @@ jobs:
 
       # 5. Устанавливаем CMake
       - name: Install CMake
-        uses: lukka/get-cmake@v3
+        uses: microsoft/cmake@v1
         with:
           cmake-version: "3.26.0"
 
