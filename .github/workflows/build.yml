@@ -14,12 +14,11 @@ jobs:
 
       # 2. Скачиваем и распаковываем C-библиотеку с помощью НАДЕЖНЫХ инструментов
       - name: Download and Unpack TensorFlow C Library
-        # Используем bash для кросс-платформенной надежности
         shell: bash
         run: |
-          # Используем curl для скачивания. -L следует редиректам, -o указывает имя файла.
+          # Используем curl для скачивания
           curl -L -o tf_c.zip "https://storage.googleapis.com/tensorflow/versions/2.18.1/libtensorflow-cpu-windows-x86_64.zip"
-          # Используем стандартный unzip для распаковки
+          # Используем unzip для распаковки
           unzip tf_c.zip -d tf_c
 
       # 3. Устанавливаем Python 3.11
@@ -30,11 +29,12 @@ jobs:
       # 4. Устанавливаем Rust
       - uses: dtolnay/rust-toolchain@stable
 
-      # 5. Собираем "колесо", указывая правильный путь к библиотеке
+      # 5. Собираем "колесо" с ПОЛНОЙ инструкцией для компоновщика
       - name: Build wheel
         env:
-          # Указываем компоновщику точный путь к папке 'lib' внутри скачанного архива
-          RUSTFLAGS: -L ${{ github.workspace }}/tf_c/lib
+          # --- ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ ЗДЕСЬ ---
+          # Говорим, ГДЕ искать (-L) и ЧТО искать (-l tensorflow)
+          RUSTFLAGS: -L ${{ github.workspace }}/tf_c/lib -l tensorflow
         shell: bash
         run: |
           pip install maturin
