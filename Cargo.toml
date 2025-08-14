@@ -5,6 +5,7 @@ edition = "2021"
 exclude = ["index.node"]
 
 [lib]
+name = "dtln_rs"
 crate-type = ["lib", "cdylib"]
 
 [[bin]]
