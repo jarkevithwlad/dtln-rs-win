@@ -26,9 +26,13 @@ jobs:
 
       # 5. Устанавливаем CMake
       - name: Install CMake
-        uses: microsoft/cmake@v1
-        with:
-          cmake-version: "3.26.0"
+        shell: pwsh
+        run: |
+          $cmake_url = "https://github.com/Kitware/CMake/releases/download/v3.26.0/cmake-3.26.0-windows-x64.zip"
+          Invoke-WebRequest -Uri $cmake_url -OutFile cmake.zip
+          Expand-Archive -Path cmake.zip -DestinationPath cmake
+          $env:CMAKE_PATH = "$PWD\cmake\bin"
+          $env:Path += ";$PWD\cmake\bin"
 
       # 6. Собираем TensorFlow Lite C++
       - name: Build TensorFlow Lite C++
