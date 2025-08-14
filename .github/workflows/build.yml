@@ -12,32 +12,31 @@ jobs:
       # 1. Скачиваем код вашего форка
       - uses: actions/checkout@v4
 
-      # --- НОВЫЙ ШАГ: СКАЧИВАЕМ И РАСПАКОВЫВАЕМ TENSORFLOW LITE ---
-      - name: Download and Unpack TensorFlow Lite
+      # 2. Скачиваем и распаковываем ПОЛНУЮ C-библиотеку TensorFlow
+      - name: Download and Unpack TensorFlow C Library
         run: |
-          Invoke-WebRequest -Uri "https://storage.googleapis.com/tensorflow/lib_分離/nightly/cpu/windows/2.17.0-rc0/tensorflow-lite-2.17.0-rc0.zip" -OutFile tflite.zip
-          Expand-Archive -Path tflite.zip -DestinationPath tflite
+          Invoke-WebRequest -Uri "https://storage.googleapis.com/tensorflow/versions/2.18.1/libtensorflow-cpu-windows-x86_64.zip" -OutFile tf_c.zip
+          Expand-Archive -Path tf_c.zip -DestinationPath tf_c
         shell: powershell
 
-      # 2. Устанавливаем Python 3.11
+      # 3. Устанавливаем Python 3.11
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # 3. Устанавливаем Rust
+      # 4. Устанавливаем Rust
       - uses: dtolnay/rust-toolchain@stable
 
-      # 4. Собираем "колесо"
+      # 5. Собираем "колесо" с правильным путем к библиотеке
       - name: Build wheel
-        # --- НОВЫЙ ШАГ: УКАЗЫВАЕМ ПУТЬ К БИБЛИОТЕКЕ TFLITE ---
-        # Мы устанавливаем переменную окружения, чтобы rustc/link.exe нашли .lib файл
         env:
-          RUSTFLAGS: -L ${{ github.workspace }}\tflite
+          # Указываем компоновщику точный путь к папке 'lib' внутри скачанного архива
+          RUSTFLAGS: -L ${{ github.workspace }}\tf_c\lib
         run: |
           pip install maturin
           maturin build --release --out dist --find-interpreter
 
-      # 5. Загружаем результат
+      # 6. Загружаем результат
       - uses: actions/upload-artifact@v4
         with:
           name: dtln-rs-wheel-windows-py311
