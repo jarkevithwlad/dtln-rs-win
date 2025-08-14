@@ -12,35 +12,32 @@ jobs:
       # 1. Скачиваем код вашего форка
       - uses: actions/checkout@v4
 
-      # 2. Скачиваем и распаковываем C-библиотеку с помощью НАДЕЖНЫХ инструментов
-      - name: Download and Unpack TensorFlow C Library
-        # Мы используем bash (стандартный для CI/CD), а не PowerShell
-        shell: bash
+      # --- НОВЫЙ ШАГ: СКАЧИВАЕМ И РАСПАКОВЫВАЕМ TENSORFLOW LITE ---
+      - name: Download and Unpack TensorFlow Lite
         run: |
-          # Используем curl для скачивания. -L следует редиректам, -o указывает имя файла.
-          curl -L -o tf_c.zip "https://storage.googleapis.com/tensorflow/versions/2.18.1/libtensorflow-cpu-windows-x86_64.zip"
-          # Используем стандартный unzip для распаковки
-          unzip tf_c.zip -d tf_c
+          Invoke-WebRequest -Uri "https://storage.googleapis.com/tensorflow/versions/2.18.1/libtensorflow-cpu-windows-x86_64.zip" -OutFile tflite.zip
+          Expand-Archive -Path tflite.zip -DestinationPath tflite
+        shell: powershell
 
-      # 3. Устанавливаем Python 3.11
+      # 2. Устанавливаем Python 3.11
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # 4. Устанавливаем Rust
+      # 3. Устанавливаем Rust
       - uses: dtolnay/rust-toolchain@stable
 
-      # 5. Собираем "колесо", указывая путь к библиотеке
+      # 4. Собираем "колесо"
       - name: Build wheel
+        # --- НОВЫЙ ШАГ: УКАЗЫВАЕМ ПУТЬ К БИБЛИОТЕКЕ TFLITE ---
+        # Мы устанавливаем переменную окружения, чтобы rustc/link.exe нашли .lib файл
         env:
-          # Путь к .lib файлам в распакованной библиотеке
-          RUSTFLAGS: -L ${{ github.workspace }}/tf_c/lib
-        shell: bash
+          RUSTFLAGS: -L ${{ github.workspace }}\tflite
         run: |
           pip install maturin
           maturin build --release --out dist --find-interpreter
 
-      # 6. Загружаем результат
+      # 5. Загружаем результат
       - uses: actions/upload-artifact@v4
         with:
           name: dtln-rs-wheel-windows-py311
