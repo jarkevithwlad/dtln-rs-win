@@ -9,7 +9,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      # 1. Скачиваем код
+      # 1. Скачиваем код вашего форка
       - uses: actions/checkout@v4
 
       # 2. Устанавливаем Python
@@ -20,107 +20,41 @@ jobs:
       # 3. Устанавливаем Rust
       - uses: dtolnay/rust-toolchain@stable
 
-      # 4. Готовим библиотеку TFLite из полного пакета TensorFlow
-      - name: Prepare TFLite library from official TensorFlow package
+      # 4. Клонируем репозиторий TensorFlow
+      - name: Clone TensorFlow repository
+        run: git clone https://github.com/tensorflow/tensorflow.git
+
+      # 5. Устанавливаем CMake
+      - name: Install CMake
+        uses: lukka/get-cmake@v3
+        with:
+          cmake-version: "3.26.0"
+
+      # 6. Собираем TensorFlow Lite C++
+      - name: Build TensorFlow Lite C++
         shell: pwsh
         run: |
-          Write-Host "Installing full tensorflow package..."
-          # Устанавливаем полный пакет tensorflow. Используем версию, которая была успешно скачана.
-          pip install tensorflow==2.16.1
+          cd tensorflow
+          mkdir build
+          cd build
+          cmake -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release -DTENSORFLOW_LITE_BUILD=ON ..
+          cmake --build . --config Release
 
-          # Находим путь к библиотеке tensorflowlite_c.dll, используя поиск по файлу
-          # Получаем путь к site-packages
-          $site_packages_path = python -c "from site import getsitepackages; print(getsitepackages()[0])"
-          Write-Output "Searching for tensorflowlite_c.dll in: $site_packages_path"
-          
-          # Рекурсивно ищем файл tensorflowlite_c.dll
-          $tflite_dll_path = Get-ChildItem -Path $site_packages_path -Recurse -Filter "tensorflowlite_c.dll" | Select-Object -First 1 | Select-Object -ExpandProperty FullName
+      # 7. Копируем библиотеку TensorFlow Lite C++
+      - name: Copy TensorFlow Lite C++ library
+        shell: pwsh
+        run: |
+          Copy-Item -Path "tensorflow/build/Release/tensorflowlite.dll" -Destination "tflite_lib/tensorflowlite_c.dll"
+          Copy-Item -Path "tensorflow/build/Release/tensorflowlite.lib" -Destination "tflite_lib/tensorflowlite_c.lib"
 
-          if (-not $tflite_dll_path) {
-            Write-Error "TensorFlow Lite DLL (tensorflowlite_c.dll) not found in any site-packages directory!"
-            # Попробуем найти dll_path, если путь к TFLite был другим (например, _interpreter_wrapper)
-            try {
-              $tflite_path_alt = python -c "import tflite_runtime.interpreter as tflite; print(tflite._interpreter_wrapper._TFLITE_INTERPRETER_PATH)"
-              Write-Output "Trying alternate path for DLL: $tflite_path_alt"
-              if (Test-Path $tflite_path_alt) {
-                  $tflite_dll_path = $tflite_path_alt
-              } else {
-                  Write-Error "Alternate path also did not contain the DLL."
-                  exit 1
-              }
-            } catch {
-              Write-Error "Could not find DLL using alternate path detection either. The TensorFlow installation might be corrupted or the DLL is not present."
-              exit 1
-            }
-          }
-          Write-Output "TensorFlow Lite DLL found at: $tflite_dll_path"
-          
-          # Создаем директорию для работы
-          mkdir tflite_lib
-          $def_file = "tflite_lib/tflite.def"
-
-          # Находим путь к инструментам MSVC
-          # Убедимся, что vswhere.exe доступен
-          $vswhere = Join-Path $env:ProgramFiles(x86) "Microsoft Visual Studio\Installer\vswhere.exe"
-          if (-not (Test-Path $vswhere)) {
-              Write-Error "vswhere.exe not found at expected location: $vswhere. Ensure Visual Studio build tools are installed correctly."
-              exit 1
-          }
-          $vs_path = & $vswhere -latest -property installationPath
-          
-          # Ищем папку с инструментами MSVC конкретной версии
-          $msvc_tool_path = Get-ChildItem -Path (Join-Path $vs_path "VC\Tools\MSVC") -Recurse -Filter "dumpbin.exe" | Select-Object -First 1 | Select-Object -ExpandProperty DirectoryName
-          
-          if (-not $msvc_tool_path) {
-              Write-Error "Could not find MSVC tools (dumpbin.exe). Ensure Visual Studio build tools are installed."
-              exit 1
-          }
-          $env:PATH = "$msvc_tool_path;" + $env:PATH
-          
-          # Создаем ПРАВИЛЬНО отформатированный .def файл
-          "EXPORTS" | Out-File -FilePath $def_file -Encoding ascii
-
-          # Получаем список экспортируемых функций, фильтруя по "TfLite"
-          # `Select-String` может вернуть пустой результат, если ничего не найдено
-          $exports = dumpbin /EXPORTS $tflite_dll_path | Select-String "TfLite"
-          if (-not $exports) {
-             Write-Error "No TfLite symbols found in DLL. The DLL might be corrupted or incomplete. Path: $tflite_dll_path"
-             exit 1
-          }
-          
-          # Обрабатываем каждую строку экспорта
-          foreach ($line in $exports) {
-            # Парсим имя функции. Оно обычно последнее слово в строке.
-            $func_name = ($line.ToString().Split(' ')[-1]).Trim()
-            # Убеждаемся, что имя не пустое, и добавляем его в .def файл
-            if ($func_name) {
-              $func_name | Add-Content -Path $def_file
-            }
-          }
-          
-          Write-Output "--- Content of generated .def file: ---"
-          Get-Content $def_file
-          Write-Output "----------------------------------------"
-          
-          # Создаем .lib файл из .def файла
-          lib /DEF:$def_file /OUT:tflite_lib/tensorflowlite_c.lib /MACHINE:X64
-          
-          # Проверяем, успешно ли создан .lib файл
-          if (-not (Test-Path "tflite_lib/tensorflowlite_c.lib")) {
-            Write-Error "Failed to create .lib file! Please check the previous steps."
-            exit 1
-          }
-          Write-Output "Successfully created tensorflowlite_c.lib in tflite_lib directory."
-
-      # 5. Собираем "колесо"
+      # 8. Собираем "колесо"
       - name: Build wheel
         shell: bash
         run: |
           pip install maturin
-          # build.rs должен найти tflite_lib/tensorflowlite_c.lib
           maturin build --release --out dist --find-interpreter
 
-      # 6. Загружаем результат
+      # 9. Загружаем результат
       - uses: actions/upload-artifact@v4
         with:
           name: dtln-rs-wheel-windows-py311
