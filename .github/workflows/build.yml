@@ -20,37 +20,42 @@ jobs:
       # 3. Устанавливаем Rust
       - uses: dtolnay/rust-toolchain@stable
 
-      # 4. Готовим библиотеку TFLite (улучшенная версия)
-      - name: Prepare TFLite library from official Python package
+      # 4. Готовим библиотеку TFLite из полного пакета TensorFlow
+      - name: Prepare TFLite library from official TensorFlow package
         shell: pwsh
         run: |
-          # Устанавливаем официальный пакет
-          pip install tflite-runtime
-          
-          # Находим путь к .dll
-          $tflite_path = python -c "import tflite_runtime.interpreter as tflite; print(tflite._interpreter_wrapper._TFLITE_INTERPRETER_PATH)"
-          if (-not (Test-Path $tflite_path)) {
-            Write-Error "TFLite DLL not found!"
+          Write-Host "Installing full tensorflow package..."
+          # Устанавливаем полный пакет tensorflow
+          # Используем конкретную версию, чтобы избежать неожиданных обновлений
+          pip install tensorflow==2.16.1 # Или другую стабильную версию, например, 2.15.0
+
+          # Находим путь к .dll (она находится в site-packages/tensorflow/lite/python/)
+          $tensorflow_lib_path = python -c "import tensorflow as tf; import os; print(os.path.join(os.path.dirname(tf.__file__), 'lite', 'python'))"
+          $tflite_dll_path = Join-Path $tensorflow_lib_path "tensorflowlite_c.dll"
+
+          if (-not (Test-Path $tflite_dll_path)) {
+            Write-Error "TensorFlow Lite DLL not found at expected path: $tflite_dll_path"
             exit 1
           }
-          Write-Output "TFLite DLL found at: $tflite_path"
-          
-          # Создаем директории для работы
+          Write-Output "TensorFlow Lite DLL found at: $tflite_dll_path"
+
+          # Создаем директорию для работы
           mkdir tflite_lib
           $def_file = "tflite_lib/tflite.def"
-          
-          # --- КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ ---
-          # Создаем ПРАВИЛЬНО отформатированный .def файл
-          # 1. Добавляем обязательный заголовок EXPORTS
-          "EXPORTS" | Out-File -FilePath $def_file -Encoding ascii
-          
-          # 2. Находим путь к инструментам MSVC
+
+          # Находим путь к инструментам MSVC (как и раньше)
           $vs_path = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
           $msvc_tool_path = (Get-ChildItem -Path (Join-Path $vs_path "VC\Tools\MSVC") -Recurse -Filter "dumpbin.exe" | Select-Object -First 1).DirectoryName
           $env:PATH = "$msvc_tool_path;" + $env:PATH
           
-          # 3. Извлекаем имена функций, очищаем их и добавляем в .def файл
-          $exports = dumpbin /EXPORTS $tflite_path | Select-String "TfLite"
+          # Создаем ПРАВИЛЬНО отформатированный .def файл
+          "EXPORTS" | Out-File -FilePath $def_file -Encoding ascii
+
+          $exports = dumpbin /EXPORTS $tflite_dll_path | Select-String "TfLite"
+          if (-not $exports) {
+             Write-Error "No TfLite symbols found in DLL. This might be the wrong DLL or a broken TensorFlow install."
+             exit 1
+          }
           foreach ($line in $exports) {
             $func_name = ($line.ToString().Split(' ')[-1]).Trim()
             if ($func_name) {
@@ -58,15 +63,13 @@ jobs:
             }
           }
           
-          # --- ДИАГНОСТИКА ---
           Write-Output "--- Content of generated .def file: ---"
           Get-Content $def_file
           Write-Output "----------------------------------------"
           
-          # 4. Создаем .lib файл из .def файла
+          # Создаем .lib файл из .def файла
           lib /DEF:$def_file /OUT:tflite_lib/tensorflowlite_c.lib /MACHINE:X64
           
-          # --- ФИНАЛЬНАЯ ПРОВЕРКА ---
           if (-not (Test-Path "tflite_lib/tensorflowlite_c.lib")) {
             Write-Error "Failed to create .lib file!"
             exit 1
