@@ -1,0 +1,24 @@
+name: Build Windows Wheel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build_windows_wheel:
+    name: Build wheel for Windows on Python 3.11
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build wheel
+        run: |
+          pip install maturin
+          maturin build --release --out dist --find-interpreter
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dtln-rs-wheel-windows-py311
+          path: dist
