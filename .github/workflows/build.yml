@@ -12,32 +12,51 @@ jobs:
       # 1. Скачиваем код вашего форка
       - uses: actions/checkout@v4
 
-      # 2. Скачиваем и распаковываем C-библиотеку с помощью НАДЕЖНЫХ инструментов
-      - name: Download and Unpack TensorFlow C Library
-        shell: bash
-        run: |
-          # Используем curl для скачивания
-          curl -L -o tf_c.zip "https://storage.googleapis.com/tensorflow/versions/2.18.1/libtensorflow-cpu-windows-x86_64.zip"
-          # Используем unzip для распаковки
-          unzip tf_c.zip -d tf_c
-
-      # 3. Устанавливаем Python 3.11
+      # 2. Устанавливаем Python 3.11
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      # 4. Устанавливаем Rust
+      # 3. Устанавливаем Rust
       - uses: dtolnay/rust-toolchain@stable
 
-      # 5. Собираем "колесо" с ПОЛНОЙ инструкцией для компоновщика
+      # 4. Готовим библиотеку TensorFlow Lite (самый важный шаг)
+      - name: Prepare TFLite library from official Python package
+        shell: pwsh
+        run: |
+          # Устанавливаем официальный пакет
+          pip install tflite-runtime
+          
+          # Находим путь к установленной библиотеке .dll
+          $tflite_path = python -c "import tflite_runtime.interpreter as tflite; print(tflite._interpreter_wrapper._TFLITE_INTERPRETER_PATH)"
+          Write-Output "TFLite DLL found at: $tflite_path"
+          
+          # Создаем директории для работы
+          mkdir tflite_lib
+          mkdir temp_def
+          
+          # Путь к инструментам Visual Studio (они есть в `windows-latest` runner)
+          $vs_path = "${env:ProgramFiles}\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC"
+          $msvc_ver = (Get-ChildItem $vs_path | Sort-Object Name -Descending | Select-Object -First 1).Name
+          $lib_tool_path = "$vs_path\\$msvc_ver\\bin\\Hostx64\\x64"
+          
+          # Добавляем инструменты в PATH, чтобы можно было их вызывать
+          $env:PATH = "$lib_tool_path;" + $env:PATH
+          
+          # 1. Создаем .def файл с экспортируемыми символами из .dll
+          dumpbin /EXPORTS $tflite_path | Select-String "TfLite" > temp_def/tflite.def
+          
+          # 2. Создаем .lib файл из .def файла
+          lib /DEF:temp_def/tflite.def /OUT:tflite_lib/tensorflowlite_c.lib /MACHINE:X64
+          
+          Write-Output "Successfully created tensorflowlite_c.lib in tflite_lib directory."
+
+      # 5. Собираем "колесо"
       - name: Build wheel
-        env:
-          # --- ФИНАЛЬНОЕ ИСПРАВЛЕНИЕ ЗДЕСЬ ---
-          # Говорим, ГДЕ искать (-L) и ЧТО искать (-l tensorflow)
-          RUSTFLAGS: -L ${{ github.workspace }}/tf_c/lib -l tensorflow
         shell: bash
         run: |
           pip install maturin
+          # Теперь build.rs сам найдет библиотеку, RUSTFLAGS не нужен
           maturin build --release --out dist --find-interpreter
 
       # 6. Загружаем результат
